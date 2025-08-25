@@ -1,0 +1,26 @@
+{
+  "name": "tomate-astro",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "npm run generate-firebase-config && concurrently \"npm run emulator\" \"npm run dev:astro\"",
+    "dev:astro": "wait-on tcp:9000 && astro dev",
+    "dev:no-emulator": "npm run generate-firebase-config && astro dev",
+    "emulator": "firebase emulators:start --only database",
+    "emulator:ui": "firebase emulators:start --only database",
+    "build": "npm run generate-firebase-config && astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "generate-firebase-config": "node scripts/generate-firebase-config.js"
+  },
+  "dependencies": {
+    "astro": "^5.12.9",
+    "firebase": "^12.1.0",
+    "lit": "^3.3.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "wait-on": "^8.0.4",
+    "dotenv": "^16.4.5"
+  }
+}

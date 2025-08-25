@@ -1,0 +1,23 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Panel Admin - Tomate Desayuno">
+  <main>
+    <admin-app-controller></admin-app-controller>
+  </main>
+</Layout>
+
+<script>
+  import '../../public/js/components/admin-app-controller.js';
+</script>
+
+<style>
+  main {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100vh;
+    background: #f5f7fa;
+  }
+</style>

@@ -1,0 +1,26 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "desayunos": {
+      ".read": true,
+      ".write": true,
+      "$groupId": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.hasChildren(['id', 'createdAt', 'paid'])"
+      }
+    },
+    "authorizedUsers": {
+      ".read": "auth != null",
+      ".write": false
+    },
+    "adminAccessLogs": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$userId": {
+        ".validate": "auth.uid === $userId"
+      }
+    }
+  }
+}
