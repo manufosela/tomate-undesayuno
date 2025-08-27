@@ -7,18 +7,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Core Development
 
 ```bash
-npm run dev              # Start both Firebase emulator and Astro dev server concurrently
-npm run dev:astro        # Start Astro dev server only (waits for emulator on port 9000)
-npm run emulator         # Start Firebase Realtime Database emulator only
-npm run emulator:ui      # Start Firebase emulator with UI
-npm run build            # Build production site to ./dist/
-npm run preview          # Preview build locally
+npm run dev                # Start both Firebase emulator and Astro dev server concurrently
+npm run dev:astro          # Start Astro dev server only (waits for emulator on port 9000)
+npm run dev:no-emulator    # Start Astro dev server with production Firebase
+npm run emulator           # Start Firebase Realtime Database emulator only
+npm run emulator:ui        # Start Firebase emulator with UI
+npm run build              # Build production site to ./dist/
+npm run preview            # Preview build locally
+npm run generate-firebase-config  # Regenerate Firebase config from .env
 ```
 
 ### Accessing the Application
 
 - **Main App**: `http://localhost:4321/` - Group breakfast ordering
 - **Admin Panel**: `http://localhost:4321/admin` - Admin dashboard (requires Google authentication)
+- **Emulator UI**: `http://127.0.0.1:4000` - Firebase emulator dashboard (when using `npm run emulator:ui`)
 
 ## Architecture Overview
 

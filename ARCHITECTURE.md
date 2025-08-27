@@ -1,492 +1,429 @@
-# Architecture Guide - Planning GameXP v1.2.0
+# Architecture Guide - Tómate un Desayuno
 
 ## Overview
 
-This document describes the current architectural implementation of Planning GameXP v1.2.0, featuring a service-oriented architecture with centralized services, event delegation patterns, and Lit-based web components for improved maintainability and performance.
+This document describes the architecture of the Tómate un Desayuno application, a real-time collaborative breakfast ordering system built with Astro, Lit Web Components, and Firebase.
 
 ## Tech Stack
 
-- **Frontend Framework**: Astro (v5.10.0) with Lit web components
-- **Backend Services**: Firebase (Realtime Database, Firestore, Auth, Cloud Functions, Storage, FCM)
-- **Testing**: Vitest (unit tests), Playwright (E2E tests)
-- **Build System**: Astro with custom service worker generation
-- **Architecture Pattern**: Service-Oriented Architecture with Event Delegation
+- **Frontend Framework**: Astro (v5.12.9) - Static site generation with island architecture
+- **UI Components**: Lit (v3.3.1) - Web Components with reactive properties
+- **Backend**: Firebase Realtime Database - Real-time data synchronization
+- **Authentication**: Firebase Auth with Google OAuth
+- **Hosting**: Firebase Hosting
+- **Development**: Firebase Local Emulator Suite
+- **Build Tools**: Node.js, npm, concurrently, wait-on
 
-## Core Services
+## Application Architecture
 
-### 1. Firebase Service (`firebase-service.js`)
+### 1. Multi-Page Architecture
 
-Central service for all Firebase operations including authentication, database access, and configuration.
+The application consists of two main pages:
 
-```javascript
-import { FirebaseService } from "./services/firebase-service.js";
+- **Main Application** (`/index.astro`): Public-facing breakfast ordering interface
+- **Admin Panel** (`/admin.astro`): Protected administrative dashboard
 
-// Initialize Firebase services
-FirebaseService.init();
+Each page loads its own controller component that manages the entire page lifecycle.
 
-// Access different Firebase services
-const auth = FirebaseService.getAuth();
-const database = FirebaseService.getDatabase();
-const firestore = FirebaseService.getFirestore();
+### 2. Component Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│            Astro Pages (SSG)                │
+│  ┌──────────────┐    ┌──────────────┐      │
+│  │ index.astro  │    │ admin.astro  │      │
+│  └──────┬───────┘    └──────┬───────┘      │
+│         │                    │               │
+├─────────┼────────────────────┼───────────────┤
+│         ▼                    ▼               │
+│  ┌──────────────┐    ┌──────────────┐      │
+│  │AppController │    │AdminApp-     │      │
+│  │              │    │Controller    │      │
+│  └──────┬───────┘    └──────┬───────┘      │
+│         │                    │               │
+│         ▼                    ▼               │
+│   Lit Web Components   Lit Web Components   │
+│   ├── GrupoSelector    ├── AdminLogin       │
+│   ├── PersonasManager  ├── AdminPanel       │
+│   ├── MenuSelector     └── (uses shared)    │
+│   ├── GrupoResumen                          │
+│   └── ModalSystem                           │
+└─────────────────────────────────────────────┘
 ```
 
-### 2. Permission Service (`permission-service.js`)
+### 3. Service Layer Architecture
 
-Centralizes role-based access control logic across all components.
+All business logic is encapsulated in services that handle specific domains:
 
-```javascript
-import { permissionService } from "./services/permission-service.js";
+```
+Services Layer
+├── firebase-service.js    # Firebase SDK initialization and configuration
+├── auth-service.js        # Google OAuth authentication
+├── grupo-service.js       # Group management and business logic
+└── session-service.js     # Browser session persistence
 
-// Initialize with user data
-permissionService.init(user, userRole, viewMode);
-
-// Get permissions for any card type
-const permissions = permissionService.getCardPermissions(cardData, "task");
-// Returns: { canView, canEdit, canSave, canDelete, canCreate }
+Data Flow:
+Components → Services → Firebase → Real-time Updates → Components
 ```
 
-**Role-Based Permissions:**
-- **Admin**: Full access in management mode
-- **User**: Limited creation rights in consultation mode
-- **Consultant**: Read-only access with specific creation permissions
+## Core Components
 
-### 3. Card Service (`card-service.js`)
+### Application Controllers
 
-Handles all card-related business logic and CRUD operations.
+#### AppController (`app-controller.js`)
+- **Purpose**: Main application orchestrator
+- **Responsibilities**:
+  - View state management (home, grupo)
+  - Component lifecycle management
+  - Session restoration
+  - Navigation between views
 
-```javascript
-import { CardService } from "./services/card-service.js";
+#### AdminAppController (`admin-app-controller.js`)
+- **Purpose**: Admin panel orchestrator
+- **Responsibilities**:
+  - Authentication flow management
+  - Admin panel initialization
+  - Access control enforcement
 
-const cardService = new CardService(firebaseService);
+### User Interface Components
 
-// Card operations
-await cardService.createCard(cardData);
-await cardService.updateCard(cardId, updates);
-await cardService.deleteCard(cardId);
-const card = await cardService.getCard(cardId);
-```
+#### GrupoSelector (`grupo-selector.js`)
+- **Purpose**: Group creation and joining interface
+- **Features**:
+  - Generate unique group IDs (TOMATE-XXXXX)
+  - Join existing groups with validation
+  - Person name management
 
-### 4. Card Realtime Service (`card-realtime-service.js`)
+#### PersonasManagerGrupo (`personas-manager-grupo.js`)
+- **Purpose**: Group member and order management
+- **Features**:
+  - Real-time order synchronization
+  - Individual order management
+  - Total calculations
+  - Member list display
 
-Manages real-time synchronization of card data across clients using Firebase Realtime Database.
+#### MenuSelector (`menu-selector.js`)
+- **Purpose**: Product selection interface
+- **Features**:
+  - Dynamic menu rendering
+  - Supplement management
+  - Price calculation
+  - Order modification
 
-```javascript
-import { initCardRealtimeService } from "./services/card-realtime-service.js";
+#### GrupoResumen (`grupo-resumen.js`)
+- **Purpose**: Group order summary
+- **Features**:
+  - Real-time total calculation
+  - Individual order breakdown
+  - Payment status display
 
-// Initialize real-time synchronization
-await initCardRealtimeService();
+### Admin Components
 
-// Automatic real-time updates for all cards
-// Handles conflict resolution and data consistency
-```
+#### AdminLogin (`admin-login.js`)
+- **Purpose**: Google OAuth authentication
+- **Features**:
+  - Google Sign-In integration
+  - Authorization checking
+  - Access logging
 
-### 5. Filter Service (`filter-service.js`)
+#### AdminPanel (`admin-panel.js`)
+- **Purpose**: Administrative dashboard
+- **Features**:
+  - All groups overview
+  - Group statistics
+  - Payment management
+  - Group deletion
+  - Detailed order views
 
-Generic filtering system supporting multiple card types with configurable filter options.
+### System Components
 
-```javascript
-import { filterService } from './services/filter-service.js';
+#### ModalSystem (`modal-system.js`)
+- **Purpose**: Centralized modal management
+- **Features**:
+  - Dynamic modal creation
+  - Overlay management
+  - Event handling
+  - Accessibility features
 
-// Register filter configuration
-filterService.registerFilterConfig('task', {
-  filters: {
-    search: { type: 'text', fields: ['title', 'description'] },
-    status: { type: 'select', multiple: true, options: [...] },
-    priority: { type: 'select', options: [...] }
-  },
-  sortOptions: ['title', 'createdDate', 'status']
-});
+## Service Architecture
 
-// Apply filters
-const filteredCards = filterService.applyFilters('task', cards, filterState);
-```
-
-### 6. Modal Service (`modal-service.js`)
-
-Centralized modal management with LIFO stacking and different modal types.
-
-```javascript
-import { modalService } from "./services/modal-service.js";
-
-// Create basic modal
-const modal = await modalService.createModal({
-  title: "Edit Card",
-  content: cardElement,
-  maxWidth: "80vw",
-});
-
-// Create confirmation modal
-const confirmed = await modalService.createConfirmationModal({
-  title: "Delete Card",
-  message: "Are you sure?",
-  confirmText: "Delete",
-  cancelText: "Cancel",
-});
-```
-
-### 7. Push Notification Service (`push-notification-service.js`)
-
-Handles Firebase Cloud Messaging for real-time notifications.
-
-```javascript
-import { pushNotificationService } from "./services/push-notification-service.js";
-
-// Initialize push notifications
-await pushNotificationService.init();
-
-// Send notification
-await pushNotificationService.sendNotification(userId, {
-  title: "Task assigned",
-  message: "New task has been assigned to you",
-  data: { taskId, projectId }
-});
-```
-
-### 8. Global Data Manager (`global-data-manager.js`)
-
-Centralized state management for global application data.
+### FirebaseService
+Central service managing all Firebase interactions:
 
 ```javascript
-import { globalDataManager } from "./services/global-data-manager.js";
-
-// Access global state
-const currentProject = globalDataManager.getCurrentProject();
-const userRole = globalDataManager.getUserRole();
-
-// Listen for state changes
-globalDataManager.addListener('project-changed', (project) => {
-  // Handle project change
-});
-```
-
-### 9. Update Service (`update-service.js`)
-
-Manages application updates and version control.
-
-```javascript
-import { updateService } from "./services/update-service.js";
-
-// Check for updates
-const hasUpdate = await updateService.checkForUpdates();
-
-// Apply updates
-if (hasUpdate) {
-  await updateService.applyUpdate();
+class FirebaseService {
+  - initializeApp()           // Firebase app initialization
+  - connectToEmulator()       // Emulator detection and connection
+  - getDatabase()            // Database reference
+  - getAuth()               // Auth instance
+  - saveGroup()            // Group CRUD operations
+  - getGroup()
+  - updateGroup()
+  - deleteGroup()
+  - getAllGroups()        // Admin operations
+  - listenToGroup()      // Real-time listeners
 }
 ```
 
-## Event System
-
-### Unified Event System (`unified-event-system.js`)
-
-Advanced event delegation system that manages all application events centrally.
+### AuthService
+Handles Google OAuth authentication:
 
 ```javascript
-import { UnifiedEventSystem } from "./events/unified-event-system.js";
-
-// Register event handlers
-UnifiedEventSystem.register(".add-button", "click", (event, element) => {
-  // Handle add button clicks
-});
-
-// Event delegation with priority and options
-UnifiedEventSystem.register(".critical-button", "click", handler, {
-  priority: 10,
-  preventDefault: true,
-});
+class AuthService {
+  - signInWithGoogle()       // OAuth flow
+  - signOut()               // Logout
+  - getCurrentUser()        // User state
+  - checkAuthorization()    // Access control
+  - logAccess()            // Audit logging
+}
 ```
 
-### Event Delegation Manager (`event-delegation-manager.js`)
-
-Core event delegation implementation for performance optimization.
+### GrupoService
+Business logic for group management:
 
 ```javascript
-import { eventDelegationManager } from "./events/event-delegation-manager.js";
-
-// Single event listener per event type on document
-// Automatic cleanup and memory management
-// Priority-based handler execution
+class GrupoService {
+  - createGroup()           // Group creation with unique ID
+  - joinGroup()            // Join existing group
+  - validateGroupId()      // ID format validation
+  - generateGroupId()      // TOMATE-XXXXX generation
+  - updatePersonOrder()    // Order management
+  - calculateTotals()      // Price calculations
+  - cleanupInactiveGroups() // Maintenance
+}
 ```
 
-## Factory Patterns
-
-### Card Factory (`card-factory.js`)
-
-Creates appropriate card types based on configuration.
+### SessionService
+Browser session management:
 
 ```javascript
-import { CardFactory } from "./factories/card-factory.js";
-
-// Create different card types
-const taskCard = await CardFactory.createCard("task", taskConfig);
-const bugCard = await CardFactory.createCard("bug", bugConfig);
+class SessionService {
+  - saveSession()          // LocalStorage persistence
+  - getSession()          // Session restoration
+  - clearSession()        // Cleanup
+  - validateSession()     // Session verification
+}
 ```
 
-### View Factory (`view-factory.js`)
+## Data Model
 
-Creates different view renderers (List, Kanban, Sprint, Gantt).
+### Firebase Realtime Database Structure
 
-```javascript
-import { ViewFactory } from "./factories/view-factory.js";
-
-// Create view renderers
-const listView = ViewFactory.createRenderer("list", config);
-const kanbanView = ViewFactory.createRenderer("kanban", config);
+```json
+{
+  "desayunos": {
+    "TOMATE-12345": {
+      "id": "TOMATE-12345",
+      "createdAt": 1234567890,
+      "lastActivity": 1234567890,
+      "paid": false,
+      "personas": {
+        "Juan": {
+          "pedido": {
+            "Tostada con tomate": {
+              "precio": 2.00,
+              "cantidad": 1,
+              "suplementos": ["Jamón"]
+            }
+          },
+          "total": 3.50
+        }
+      },
+      "totalGrupo": 3.50
+    }
+  },
+  "authorizedUsers": ["admin@example.com"],
+  "adminAccessLogs": {
+    "userId": {
+      "timestamp": 1234567890,
+      "email": "admin@example.com",
+      "action": "login"
+    }
+  }
+}
 ```
 
-## Rendering System
+### Security Rules
 
-### Card Renderer (`card-renderer.js`)
-
-Handles rendering logic for all card types.
-
-### View Renderers
-- **List Renderer** (`list-renderer.js`): Traditional list view
-- **Kanban Renderer** (`kanban-renderer.js`): Kanban board view
-- **Sprint Renderer** (`sprint-renderer.js`): Sprint-specific view
-- **Gantt Renderer** (`gantt-renderer.js`): Timeline view
-- **Table Renderer** (`table-renderer.js`): Tabular view
-
-## Web Components Architecture
-
-### Base Components
-
-All components extend from base classes with shared functionality:
-
-- **BaseCard** (`base-card.js`): Base class for all card components
-- **EditableCard** (`editable-card.js`): Enhanced base with editing capabilities
-
-### Card Components
-- **TaskCard** (`TaskCard.js`): Task management cards
-- **BugCard** (`BugCard.js`): Bug tracking cards
-- **SprintCard** (`SprintCard.js`): Sprint planning cards
-- **EpicCard** (`EpicCard.js`): Epic management cards
-- **ProposalCard** (`ProposalCard.js`): Proposal cards
-- **QACard** (`QACard.js`): Quality assurance cards
-
-### UI Components
-- **AppManager** (`AppManager.js`): Main application manager
-- **AppModal** (`AppModal.js`): Modal dialog system
-- **ProjectSelector** (`ProjectSelector.js`): Project selection interface
-- **NotificationBell** (`NotificationBell.js`): Notification center
-- **MenuNav** (`MenuNav.js`): Navigation menu
-- **GanttChart** (`GanttChart.js`): Gantt chart visualization
-- **SprintPointsChart** (`SprintPointsChart.js`): Sprint analytics
-
-### Filter Components
-- **TaskFilters** (`TaskFilters.js`): Task filtering interface
-- **BugFilters** (`BugFilters.js`): Bug filtering interface
-- **MultiSelect** (`MultiSelect.js`): Multi-selection component
-
-## Utility System
-
-### Core Utils
-- **Common Functions** (`common-functions.js`): Shared utility functions
-- **UI Utils** (`ui-utils.js`): UI-specific utilities
-- **URL Utils** (`url-utils.js`): URL manipulation utilities
-- **Service Communicator** (`service-communicator.js`): Inter-service communication
-- **Modal Manager** (`modal-manager.js`): Modal management utilities
-- **Cache Manager** (`cache-manager.js`): Caching system
-- **Lazy Loader** (`lazy-loader.js`): Dynamic loading utilities
-- **Email Sanitizer** (`email-sanitizer.js`): Email processing utilities
-- **User Display Utils** (`user-display-utils.js`): User presentation utilities
-- **Sinsole** (`sinsole.js`): Custom logging system
-
-## Theming and Styling
-
-### Theme System
-- **Theme Variables** (`theme-variables.js`): CSS custom properties
-- **Base Styles** (`base-card-styles.js`, `base-tab-styles.js`): Common styling
-- **Component-Specific Themes**:
-  - Task Theme (`task-theme.js`)
-  - Bug Theme (`bug-theme.js`)
-  - Sprint Theme (`sprint-theme.js`)
-  - Story Theme (`story-theme.js`)
-
-### Style Architecture
-Each component has its own dedicated style file maintaining separation of concerns while allowing for shared theming.
-
-## Controllers
-
-### App Controller (`app-controller.js`)
-
-Main application controller that orchestrates all services and components.
-
-```javascript
-import { AppController } from './controllers/app-controller.js';
-
-// Create and initialize application
-const appController = await AppController.create();
+```json
+{
+  "desayunos": {
+    ".read": true,           // Public read for group data
+    ".write": true,          // Public write for collaboration
+    "$groupId": {
+      ".validate": "newData.hasChildren(['id', 'createdAt', 'paid'])"
+    }
+  },
+  "authorizedUsers": {
+    ".read": "auth != null",  // Authenticated read only
+    ".write": false           // Manual management only
+  },
+  "adminAccessLogs": {
+    ".read": "auth != null",  // Authenticated access
+    ".write": "auth != null"
+  }
+}
 ```
 
-### Specialized Controllers
-- **Project Controller** (`project-controller.js`): Project management logic
-- **Tab Controller** (`tab-controller.js`): Tab navigation management
+## Real-time Synchronization
 
-## Configuration System
+### Event Flow
 
-### App Constants (`app-constants.js`)
+1. **User Action** → Component event
+2. **Component** → Service method call
+3. **Service** → Firebase write operation
+4. **Firebase** → Real-time broadcast to all clients
+5. **Listeners** → Component state update
+6. **Component** → UI re-render
 
-Centralized configuration for application-wide constants.
+### Conflict Resolution
 
-### Client Config (`client-config.js`)
+- **Last-write-wins**: Firebase handles concurrent updates
+- **Optimistic UI**: Updates show immediately, sync in background
+- **Error recovery**: Automatic retry on connection loss
 
-Client-specific configuration settings.
+## Build and Deployment
 
-### Theme Config (`theme-config.js`)
+### Build Process
 
-Theme and styling configuration.
-
-## File Structure
-
-```
-public/js/
-├── services/              # Centralized business logic services
-│   ├── firebase-service.js
-│   ├── permission-service.js
-│   ├── card-service.js
-│   ├── card-realtime-service.js
-│   ├── filter-service.js
-│   ├── modal-service.js
-│   ├── push-notification-service.js
-│   ├── global-data-manager.js
-│   ├── notification-service.js
-│   └── update-service.js
-├── events/                # Event system
-│   ├── unified-event-system.js
-│   ├── event-delegation-manager.js
-│   └── dom-update-functions.js
-├── factories/             # Factory patterns
-│   ├── card-factory.js
-│   └── view-factory.js
-├── renderers/             # View rendering logic
-│   ├── card-renderer.js
-│   ├── list-renderer.js
-│   ├── kanban-renderer.js
-│   ├── sprint-renderer.js
-│   ├── gantt-renderer.js
-│   └── table-renderer.js
-├── controllers/           # Application controllers
-│   ├── app-controller.js
-│   ├── project-controller.js
-│   └── tab-controller.js
-├── wc/                   # Lit Web Components
-│   ├── base-card.js
-│   ├── editable-card.js
-│   ├── TaskCard.js
-│   ├── BugCard.js
-│   └── [other components...]
-├── utils/                # Utility functions
-│   ├── common-functions.js
-│   ├── ui-utils.js
-│   ├── service-communicator.js
-│   └── [other utils...]
-├── ui/styles/            # Theming and styles
-│   ├── theme-variables.js
-│   ├── themes/
-│   └── [component styles...]
-├── filters/              # Filter system
-│   ├── filter-factory.js
-│   ├── base-filter-system.js
-│   └── types/
-├── views/                # View managers
-│   ├── list-view-manager.js
-│   ├── kanban-view-manager.js
-│   └── [other view managers...]
-├── core/                 # Core initialization
-│   └── app-initializer.js
-├── config/               # Configuration
-│   ├── app-constants.js
-│   ├── client-config.js
-│   └── theme-config.js
-├── constants/            # Application constants
-│   └── app-constants.js
-└── main.js              # Application entry point
+```bash
+npm run build
+├── generate-firebase-config.js  # Generate config from .env
+├── astro build                 # Build static site
+└── Output to dist/            # Firebase hosting directory
 ```
 
-## Architecture Principles
+### Environment Configuration
 
-### 1. Service-Oriented Architecture
-- **Separation of Concerns**: Each service has a single responsibility
-- **Dependency Injection**: Services can be easily mocked for testing
-- **Centralized Logic**: Business logic is centralized in services
+The build process reads from `.env`:
+- `PUBLIC_FIREBASE_*` variables
+- Generates `/public/js/firebase-config.js`
+- Includes emulator detection logic
+- Provides helper functions
 
-### 2. Event-Driven Architecture
-- **Unified Event System**: All events go through centralized management
-- **Loose Coupling**: Components communicate via events, not direct references
-- **Performance Optimized**: Single event listeners with delegation
+### Deployment Architecture
 
-### 3. Component-Based Architecture
-- **Lit Web Components**: Reusable, standards-based components
-- **Composition**: Complex UI built from simple, composable components
-- **Separation of Concerns**: Logic, styling, and templates separated
-
-### 4. Real-time Architecture
-- **Firebase Integration**: Real-time data synchronization
-- **Conflict Resolution**: Automatic handling of concurrent edits
-- **Offline Support**: Graceful degradation when offline
+```
+Firebase Hosting
+├── dist/                    # Static files
+│   ├── index.html          # Main app
+│   ├── admin/index.html    # Admin panel
+│   └── _astro/            # Bundled assets
+└── Firebase Services
+    ├── Realtime Database   # Data persistence
+    ├── Authentication      # Google OAuth
+    └── Hosting            # CDN distribution
+```
 
 ## Performance Optimizations
 
-### Memory Management
-- **Event Delegation**: O(1) event listeners instead of O(n)
-- **Lazy Loading**: Components loaded on demand
-- **Cache Management**: Intelligent caching of frequently accessed data
+### Static Site Generation
+- Astro pre-renders HTML at build time
+- Minimal JavaScript hydration
+- Optimized asset loading
 
-### Real-time Performance
-- **Optimistic Updates**: UI updates before server confirmation
-- **Batch Operations**: Multiple operations combined for efficiency
-- **Connection Management**: Efficient Firebase connection handling
+### Component Loading
+- Lit components loaded as ES modules
+- Lazy loading from CDN
+- Efficient re-rendering with reactive properties
+
+### Real-time Updates
+- Firebase SDK handles connection management
+- Automatic reconnection
+- Offline persistence support
+
+### Bundle Optimization
+- Tree-shaking unused code
+- Minification in production
+- Asset compression
+
+## Development Workflow
+
+### Local Development Setup
+
+```bash
+# Terminal 1: Start emulator
+npm run emulator
+
+# Terminal 2: Start dev server  
+npm run dev:astro
+
+# Or combined:
+npm run dev
+```
+
+### Emulator Architecture
+
+- **Database Emulator** (port 9000): Local Realtime Database
+- **Emulator UI** (port 4000): Web interface for data inspection
+- **Auto-detection**: App automatically connects to emulator in development
 
 ## Security Architecture
 
-### Permission System
-- **Role-Based Access Control**: Admin, User, Consultant roles
-- **Field-Level Permissions**: Granular control over data access
-- **Real-time Permission Updates**: Permissions updated in real-time
+### Authentication Flow
 
-### Data Security
-- **Firebase Security Rules**: Server-side validation
-- **Input Sanitization**: All user input sanitized
-- **Authentication Required**: All operations require authentication
+```
+User → Google OAuth → Firebase Auth → Check authorizedUsers → Grant Access
+```
 
-## Testing Architecture
+### Authorization Levels
 
-### Unit Testing (Vitest)
-- **Service Testing**: All services have unit tests
-- **Component Testing**: Web components tested in isolation
-- **Mock Services**: Services can be mocked for testing
+1. **Public Users**: Create/join groups, manage own orders
+2. **Authorized Admins**: Full dashboard access, all groups management
+3. **System**: Automated cleanup, maintenance tasks
 
-### E2E Testing (Playwright)
-- **Comprehensive Test Suite**: Full user workflow testing
-- **Automatic Authentication**: Persistent login across tests
-- **Test Data Management**: Automatic cleanup of test data
+### Data Protection
 
-## Migration and Deployment
+- Environment variables for sensitive config
+- Generated config files excluded from git
+- HTTPS enforcement in production
+- Input sanitization in components
 
-### Build Process
-- **Security Checks**: Automatic vulnerability scanning
-- **Service Worker Generation**: Custom service worker for caching
-- **Multi-Environment**: Development, pre-production, production builds
+## Testing Considerations
 
-### Deployment
-- **Firebase Hosting**: Static asset deployment
-- **Cloud Functions**: Server-side logic deployment
-- **Database Rules**: Security rules deployment
+### Component Testing
+- Lit components are testable in isolation
+- Mock Firebase services for unit tests
+- Use Firebase emulator for integration tests
+
+### E2E Testing
+- Test full user flows
+- Emulator provides consistent test data
+- Test real-time synchronization
+
+## Scalability Considerations
+
+### Current Architecture Limits
+- Suitable for small to medium groups (< 100 concurrent users)
+- Real-time sync for all group members
+- No server-side processing required
+
+### Future Scaling Options
+- Firebase Cloud Functions for server-side logic
+- Firestore for larger datasets
+- Regional database sharding
+- CDN optimization for global distribution
 
 ## Best Practices
 
-### Development
-1. **Use Services**: Always use centralized services instead of inline logic
-2. **Event Communication**: Use events for component communication
-3. **Proper Cleanup**: Always clean up event listeners and subscriptions
-4. **Error Handling**: Comprehensive error handling and logging
-5. **Performance First**: Consider performance implications of architectural decisions
-
 ### Code Organization
-1. **Single Responsibility**: Each file/service has one clear purpose
-2. **Consistent Naming**: Follow established naming conventions
-3. **Documentation**: Code is self-documenting with clear comments
-4. **Testing**: Every service and component should be testable
+1. **Single Responsibility**: Each service/component has one clear purpose
+2. **Dependency Injection**: Services passed to components
+3. **Event-Driven**: Components communicate via events
+4. **Immutable Updates**: State changes create new objects
 
-This architecture provides a robust, scalable foundation for the Planning GameXP application with clear separation of concerns, excellent performance characteristics, and strong maintainability.
+### Development Guidelines
+1. Always use services for business logic
+2. Keep components focused on UI
+3. Use TypeScript types where beneficial
+4. Follow Lit best practices for web components
+5. Test with emulator before production
+
+### Deployment Checklist
+1. Environment variables configured
+2. Firebase project setup complete
+3. Security rules deployed
+4. Authorized users configured
+5. Build optimization enabled
+
+This architecture provides a robust, scalable foundation for the breakfast ordering application with real-time collaboration, secure admin access, and excellent developer experience.
